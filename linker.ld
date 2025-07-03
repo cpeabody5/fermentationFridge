@@ -9,50 +9,36 @@ _estack = ORIGIN(ram) + LENGTH(ram);
 PROVIDE(_stack_top = _estack);
 
 SECTIONS {
-  .vectors 0x08000000 : {
-  LONG(_stack_top)
-  LONG(Reset)
-  LONG(NMI_Handler)
-  LONG(HardFault_Handler)
-  LONG(0) /* Reserved vectors... */
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(sys_tick_handler)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(0)
-  LONG(tim2_isr)
-} > rom
-  .text : {
-  KEEP(*(.text.Reset))     /* keep the Reset handler */
-  KEEP(*(.text.tim2_isr))  /* keep the ISR */
-  *(.text*)                /* everything else */
-  *(.rodata*)
-} > rom
+  .vectors : {
+    KEEP(*(.vectors))
+  } > rom
 
-  .data : {
+  .text : {
+    *(.text*)
+  } > rom
+
+  .rodata : {
+    *(.rodata*)
+  } > rom
+
+  .data : AT (ADDR(.rodata) + SIZEOF(.rodata)) {
+    _data_vma = .;
     *(.data*)
+    _edata = .;
   } > ram
+
+  _data_lma = LOADADDR(.data);
+  PROVIDE(_data_lma = _data_lma);
+  PROVIDE(_data_vma = _data_vma);
+  PROVIDE(_edata    = _edata);
 
   .bss : {
+    _bss_start = .;
     *(.bss*)
     *(COMMON)
+    _bss_end = .;
   } > ram
+
+  PROVIDE(_bss_start = _bss_start);
+  PROVIDE(_bss_end   = _bss_end);
 }

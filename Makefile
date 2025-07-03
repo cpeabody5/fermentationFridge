@@ -2,7 +2,7 @@ CC = arm-none-eabi-gcc
 OBJCOPY = arm-none-eabi-objcopy
 CFLAGS = -Os -g -Wall -std=c11 -ffreestanding -nostdlib -mthumb -mcpu=cortex-m3 -DSTM32F1
 INCLUDES = -I../libopencm3/include
-LDFLAGS = -Tstm32f103c8t6.ld -nostdlib
+LDFLAGS = -Tlinker.ld -nostdlib
 LDLIBS = -L../libopencm3/lib -l:libopencm3_stm32f1.a
 
 SRC = src/main.c startup.s

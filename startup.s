@@ -1,6 +1,7 @@
 .syntax unified
 .thumb
 
+
 .section .vectors, "a"
 .word _stack_top
 .word Reset
@@ -60,11 +61,44 @@
 .word 0  /* RTCAlarm */
 .word 0  /* USBWakeup */
 
+
 .section .text
-.globl Reset
+.global Reset
+.type Reset, %function
 Reset:
-  bl main
-  b .
+    ldr r0, =_data_lma   // src: start of .data in flash
+    ldr r1, =_data_vma   // dest: start of .data in RAM
+    ldr r2, =_edata      // end of .data in RAM
+
+copy_data:
+    cmp r1, r2
+    bcc 1f
+    b zero_bss
+1:
+    ldr r3, [r0]
+    adds r0, #4
+    str r3, [r1]
+    adds r1, #4
+    b copy_data
+
+zero_bss:
+    ldr r0, =_bss_start
+    ldr r1, =_bss_end
+
+clear_loop:
+    cmp r0, r1
+    bcc 2f
+    b call_main
+2:
+    movs r2, #0
+    str r2, [r0]
+    adds r0, #4
+    b clear_loop
+
+call_main:
+    bl main
+    b .
+
 
 .globl NMI_Handler
 NMI_Handler:

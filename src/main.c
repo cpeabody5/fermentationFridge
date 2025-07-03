@@ -27,8 +27,10 @@ void timer_setup(void){
 
 void tim2_isr(void) __attribute__((interrupt("IRQ")));
 void tim2_isr(void){
-    timer_clear_flag(TIM2, TIM_SR_UIF);
-    gpio_toggle(GPIOC, GPIO13);
+    if (timer_get_flag(TIM2, TIM_SR_UIF)) {
+        timer_clear_flag(TIM2, TIM_SR_UIF);
+        gpio_toggle(GPIOC, GPIO13);
+    }
 
     //if (timer_get_flag(TIM2, TIM_SR_UIF)){
         //timer_clear_flag(TIM2, TIM_SR_UIF);
@@ -98,8 +100,9 @@ uint16_t read_adc(void){
 //}
 
 int main(void) {
-    cm_disable_interrupts();
     rcc_clock_setup_pll(&rcc_hse_configs[RCC_CLOCK_HSE8_72MHZ]);
+    //rcc_clock_setup_in_hsi_out_24mhz();
+    //rcc_clock_setup_pll(&rcc_hsi_configs[RCC_CLOCK_HSI_24MHZ]);
     rcc_periph_clock_enable(RCC_GPIOC);
     rcc_periph_clock_enable(RCC_GPIOB);
     gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ,
@@ -109,11 +112,12 @@ int main(void) {
     gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO0);
     gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO1);
     gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO10);
-    
+    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO11);
+
+    cm_enable_interrupts();
     timer_setup();
     adc_setup();
     systick_setup();
-    cm_enable_interrupts();
 
     int32_t filteredTemp = 0;
 
@@ -126,6 +130,8 @@ int main(void) {
         gpio_clear(GPIOB, GPIO0);
         gpio_clear(GPIOB, GPIO1);
         gpio_clear(GPIOB, GPIO10);
+        gpio_clear(GPIOB, GPIO11);
+
         if (filteredTemp <= 20){
             gpio_set(GPIOB, GPIO0);
         }
@@ -134,6 +140,7 @@ int main(void) {
         }
         if (filteredTemp > 30){
             gpio_set(GPIOB, GPIO10);
+            gpio_set(GPIOB, GPIO11);
         }
         msleep(50);
     }
