@@ -31,11 +31,6 @@ void tim2_isr(void){
         timer_clear_flag(TIM2, TIM_SR_UIF);
         gpio_toggle(GPIOC, GPIO13);
     }
-
-    //if (timer_get_flag(TIM2, TIM_SR_UIF)){
-        //timer_clear_flag(TIM2, TIM_SR_UIF);
-        //gpio_toggle(GPIOC, GPIO13);
-    //}
 }
 
 void adc_setup(void){
@@ -81,28 +76,8 @@ uint16_t read_adc(void){
 
 }
 
-//int filterTemp(int32_t newTemp, int32_t data[], int32_t size, int32_t* i){
-//
-//    data[*i] = newTemp;
-//    ++*i;
-//    if (*i >= size){
-//        *i %= 20;
-//    }
-//    int32_t filteredTemp = 0;
-//    for (int j = 0; j < size; j++){
-//        filteredTemp += data[j];
-//    }
-//
-//    filteredTemp /= size;
-//
-//    return filteredTemp;
-//
-//}
-
 int main(void) {
     rcc_clock_setup_pll(&rcc_hse_configs[RCC_CLOCK_HSE8_72MHZ]);
-    //rcc_clock_setup_in_hsi_out_24mhz();
-    //rcc_clock_setup_pll(&rcc_hsi_configs[RCC_CLOCK_HSI_24MHZ]);
     rcc_periph_clock_enable(RCC_GPIOC);
     rcc_periph_clock_enable(RCC_GPIOB);
     gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ,
@@ -120,25 +95,30 @@ int main(void) {
     systick_setup();
 
     int32_t filteredTemp = 0;
+    int32_t targetTemp = 26;
+    int32_t tempThreshold = 5;
+    gpio_clear(GPIOB, GPIO11);
+
+
 
     while(1){
         int16_t raw = read_adc();
-        int32_t temp_c = ((raw * 3300 / 4095) - 500) / 10; 
+        int32_t temp_c = ((raw * 3300 / 4095) - 500);   //temp in celcius x10
 
         filteredTemp = (filteredTemp + temp_c) / 2;
 
         gpio_clear(GPIOB, GPIO0);
         gpio_clear(GPIOB, GPIO1);
         gpio_clear(GPIOB, GPIO10);
-        gpio_clear(GPIOB, GPIO11);
 
-        if (filteredTemp <= 20){
+        if (filteredTemp <= targetTemp - tempThreshold){
+            gpio_clear(GPIOB, GPIO11);
             gpio_set(GPIOB, GPIO0);
         }
-        if (filteredTemp > 20 && filteredTemp <= 30){
+        if (filteredTemp > targetTemp - tempThreshold && filteredTemp <= targetTemp + tempThreshold){
             gpio_set(GPIOB, GPIO1);
         }
-        if (filteredTemp > 30){
+        if (filteredTemp > targetTemp + tempThreshold){
             gpio_set(GPIOB, GPIO10);
             gpio_set(GPIOB, GPIO11);
         }
