@@ -22,10 +22,7 @@ void timer_setup(void){
     timer_enable_irq(TIM2, TIM_DIER_UIE);
     nvic_enable_irq(NVIC_TIM2_IRQ);
     timer_enable_counter(TIM2);
-
 }
-
-
 
 void tim2_isr(void) __attribute__((interrupt("IRQ")));
 void tim2_isr(void){
@@ -102,14 +99,16 @@ const uint8_t segmap[10] = {
   0b01101111  // 9
 };
 
-void write_7seg(uint8_t digit1, uint8_t digit2){
-    if (digit1 > 9 || digit2 > 9) return;
+void write_7seg(uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4){
+    if (digit1 > 9 || digit2 > 9 || digit3 > 9 || digit4 > 9) return;
     gpio_clear(GPIOA, GPIO4);
     spi_send(SPI1, segmap[digit1]);
     spi_send(SPI1, segmap[digit2]);
+    spi_send(SPI1, segmap[digit3]);
+    spi_send(SPI1, segmap[digit4]);
+
     while (SPI_SR(SPI1) & SPI_SR_BSY);
     gpio_set(GPIOA, GPIO4);
-
 }
 
 int main(void) {
@@ -122,54 +121,63 @@ int main(void) {
     adc_setup();
     spi_setup();
     
-    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO0);      //Blue LED
-    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO1);      //green LED
-    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO10);     //red LED
+    gpio_set_mode(GPIOB, GPIO_MODE_INPUT, GPIO_CNF_INPUT_FLOAT, GPIO0);                 // temp Up
+    gpio_set_mode(GPIOB, GPIO_MODE_INPUT, GPIO_CNF_INPUT_FLOAT, GPIO1);                 // temp down
     gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO11);     //relay
 
     gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO4);                 // R
     gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO5 | GPIO7);   // SCK, MOSI
     
-    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO12);     // 7Seg shift register SER
-    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO13);     // 7Seg SR SRCLK
-    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO14);     // 7Seg SR RCLK
-
-
     cm_enable_interrupts();
     timer_setup();
     systick_setup();
 
     int32_t filteredTemp = 0;
-    int32_t targetTemp = 26;
+    int32_t targetTemp = 260;
     int32_t tempThreshold = 5;
     gpio_clear(GPIOB, GPIO11);
 
-
     uint8_t displayCount = 0;
+
+    bool tempUpRaw;
+    uint8_t tempUpDebouceTimer = 0;
+    bool tempDownRaw = false;
+    uint8_t tempDownDebouceTimer = 0;
+
     while(1){
+
+        tempUpRaw = gpio_get(GPIOB, GPIO0);
+        tempDownRaw = gpio_get(GPIOB, GPIO1);
+
+        if (tempDownRaw)
+            tempDownDebouceTimer++;
+        else
+            tempDownDebouceTimer = 0;
+
+        if (tempUpRaw)
+            tempUpDebouceTimer++;
+        else
+            tempUpDebouceTimer = 0;
+
+        if (tempUpDebouceTimer == 2) targetTemp += 10;
+        if (tempDownDebouceTimer == 2) targetTemp -= 10;
+
         int16_t raw = read_adc();
         int32_t temp_c = ((raw * 3300 / 4095) - 500);   //temp in celcius x10
 
         displayCount++;
         displayCount %= 10;
+        
         if (displayCount == 0){
-            write_7seg((temp_c / 100) % 10, (temp_c / 10) % 10);
+            //write_7seg((temp_c / 100) % 10, (temp_c / 10) % 10);
+            write_7seg((targetTemp/10) % 10, (targetTemp/100) % 10, (filteredTemp / 10) % 10, (filteredTemp /100) % 10);
         }
         filteredTemp = (filteredTemp + temp_c) / 2;
 
-        gpio_clear(GPIOB, GPIO0);
-        gpio_clear(GPIOB, GPIO1);
-        gpio_clear(GPIOB, GPIO10);
-
         if (filteredTemp <= targetTemp - tempThreshold){
             gpio_clear(GPIOB, GPIO11);
-            gpio_set(GPIOB, GPIO0);
-        }
-        if (filteredTemp > targetTemp - tempThreshold && filteredTemp <= targetTemp + tempThreshold){
-            gpio_set(GPIOB, GPIO1);
         }
         if (filteredTemp > targetTemp + tempThreshold){
-            gpio_set(GPIOB, GPIO10);
             gpio_set(GPIOB, GPIO11);
         }
         msleep(50);
